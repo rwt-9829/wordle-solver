@@ -252,9 +252,10 @@ class OptimalSolver:
             return self.guess_to_idx.get(self.answers[candidates[0]], 0)
         
         exclude = exclude_guesses or set()
+        candidate_words = set(self.answers[c] for c in candidates)
         
-        # For small sets, first find guesses that maximize distinct patterns
-        if n <= 6:
+        # For very small sets (n <= 7), do exhaustive search for perfect partition
+        if n <= 7:
             # Find all guesses that create maximum distinct partitions
             best_distinct = 0
             best_guesses = []
@@ -278,12 +279,65 @@ class OptimalSolver:
             if best_distinct == n:
                 # Perfect guess exists - pick the one that's a candidate if possible
                 for g in best_guesses:
-                    if self.guesses[g] in [self.answers[c] for c in candidates]:
+                    if self.guesses[g] in candidate_words:
                         return g
                 return best_guesses[0]
             
-            # Use these top guesses for minimax evaluation
-            guesses_to_try = best_guesses[:max_guesses_to_try]
+            # For imperfect partitions, use minimax to pick best
+            guesses_to_try = best_guesses[:min(len(best_guesses), max_guesses_to_try)]
+        else:
+            # For larger sets (8-20), use heuristic to filter first
+            scores = []
+            for guess_idx in self.ranked_guesses[:max(1000, max_guesses_to_try * 3)]:
+                if guess_idx in exclude:
+                    continue
+                exp, worst = score_guess_fast(self.feedback_matrix, guess_idx, candidates, n)
+                
+                # Count distinct patterns
+                feedback_row = self.feedback_matrix[guess_idx]
+                patterns = set()
+                for c in candidates:
+                    patterns.add(feedback_row[c])
+                distinct = len(patterns)
+                
+                # Score: prioritize max distinct, then min expected
+                score = -distinct * 100 + exp + worst * 0.1
+                if self.guesses[guess_idx] in candidate_words:
+                    score -= 0.15
+                scores.append((score, guess_idx))
+            
+            # Also add all candidates
+            for c in candidates:
+                guess_idx = self.guess_to_idx.get(self.answers[c])
+                if guess_idx is not None and guess_idx not in exclude:
+                    exp, worst = score_guess_fast(self.feedback_matrix, guess_idx, candidates, n)
+                    feedback_row = self.feedback_matrix[guess_idx]
+                    patterns = set()
+                    for c2 in candidates:
+                        patterns.add(feedback_row[c2])
+                    distinct = len(patterns)
+                    score = -distinct * 100 + exp + worst * 0.1 - 0.15
+                    scores.append((score, guess_idx))
+            
+            scores.sort()
+            
+            seen = set()
+            guesses_to_try = []
+            for _, g in scores:
+                if g not in seen and g not in exclude:
+                    seen.add(g)
+                    guesses_to_try.append(g)
+                    if len(guesses_to_try) >= max_guesses_to_try:
+                        break
+            
+            if not guesses_to_try:
+                for _, g in scores:
+                    if g not in seen:
+                        guesses_to_try.append(g)
+                        break
+        
+        best_total = float('inf')
+        best_guess = guesses_to_try[0] if guesses_to_try else 0
         else:
             # Get top guesses by heuristic
             candidate_words = set(self.answers[c] for c in candidates)
@@ -462,9 +516,9 @@ class OptimalSolver:
         best_score = float('inf')
         best_idx = 0
         
-        # For very small sets, we need to find a guess that distinguishes ALL candidates
-        if n <= 6:
-            # Find guesses that create maximum distinct partitions
+        # For very small sets (n <= 7), do exhaustive search for perfect partition
+        if n <= 7:
+            best_distinct = 0
             for guess_idx in range(self.n_guesses):
                 if guess_idx in exclude:
                     continue
@@ -474,13 +528,19 @@ class OptimalSolver:
                 for c in candidates:
                     patterns.add(feedback_row[c])
                 
-                # Best guess creates n distinct patterns (one per candidate)
                 distinct = len(patterns)
                 if distinct == n:
-                    # Perfect - each candidate gets unique feedback
-                    return guess_idx
+                    # Perfect - prefer candidates
+                    if self.guesses[guess_idx] in candidate_words:
+                        return guess_idx
+                    elif best_score > 0:
+                        best_score = 0
+                        best_idx = guess_idx
+                        continue
                 
-                # Otherwise score by: fewer distinct = worse
+                if distinct > best_distinct:
+                    best_distinct = distinct
+                
                 exp, worst = score_guess_fast(self.feedback_matrix, guess_idx, candidates, n)
                 score = exp + worst * 0.1 - distinct * 0.5
                 if self.guesses[guess_idx] in candidate_words:
@@ -492,13 +552,19 @@ class OptimalSolver:
             
             return best_idx
         
-        # Check top ranked guesses
+        # For larger sets, check top ranked guesses with distinct pattern priority
         for guess_idx in self.ranked_guesses[:500]:
             if guess_idx in exclude:
                 continue
-                
+            
+            feedback_row = self.feedback_matrix[guess_idx]
+            patterns = set()
+            for c in candidates:
+                patterns.add(feedback_row[c])
+            distinct = len(patterns)
+            
             exp, worst = score_guess_fast(self.feedback_matrix, guess_idx, candidates, n)
-            score = exp + worst * 0.1
+            score = exp + worst * 0.1 - distinct * 0.3
             if self.guesses[guess_idx] in candidate_words:
                 score -= 0.15
             
