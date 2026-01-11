@@ -1,0 +1,10 @@
+# Requirements for Wordle Solver
+
+# Core - no dependencies required for basic usage!
+# The solver runs with pure Python 3.7+
+
+# Optional: for faster array operations in benchmarking
+numpy>=1.19.0
+
+# Optional: for development/testing
+# pytest>=6.0.0

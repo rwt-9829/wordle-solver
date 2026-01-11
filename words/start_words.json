@@ -1,0 +1,18 @@
+{
+  "starting_words": {
+    "normal_mode": {
+      "recommended": "salet",
+      "alternatives": ["reast", "crate", "trace", "slate", "crane"]
+    },
+    "hard_mode": {
+      "recommended": "salet", 
+      "alternatives": ["reast", "crate", "trace", "slate", "crane"]
+    }
+  },
+  "notes": {
+    "salet": "Highest entropy starter, optimal for information gain",
+    "reast": "Close second, good letter coverage",
+    "crane": "Popular choice, slightly lower entropy but common letters",
+    "slate": "Good balance of vowels and consonants"
+  }
+}
