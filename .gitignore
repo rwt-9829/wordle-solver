@@ -7,6 +7,9 @@ __pycache__/
 *.nbc
 *.nbi
 
+# Solver cache
+cache/
+
 # Virtual environments
 .venv/
 venv/

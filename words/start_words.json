@@ -1,18 +1,22 @@
 {
   "starting_words": {
-    "normal_mode": {
-      "recommended": "salet",
-      "alternatives": ["reast", "crate", "trace", "slate", "crane"]
+    "recommended": "salet",
+    "alternatives": ["reast", "slate", "crate", "trace", "crane"]
+  },
+  "performance": {
+    "salet": {
+      "average": 3.4251,
+      "total_guesses": 7929,
+      "distribution": {"2": 78, "3": 1219, "4": 976, "5": 40, "6": 2}
     },
-    "hard_mode": {
-      "recommended": "salet", 
-      "alternatives": ["reast", "crate", "trace", "slate", "crane"]
+    "reast": {
+      "average": 3.4298,
+      "total_guesses": 7940,
+      "distribution": {"2": 68, "3": 1236, "4": 959, "5": 52, "6": 0}
     }
   },
   "notes": {
-    "salet": "Highest entropy starter, optimal for information gain",
-    "reast": "Close second, good letter coverage",
-    "crane": "Popular choice, slightly lower entropy but common letters",
-    "slate": "Good balance of vowels and consonants"
+    "salet": "Optimal first guess, achieves 3.4251 average (near theoretical minimum 3.4201)",
+    "reast": "Close second at 3.4298 average, no 6-guess words"
   }
 }

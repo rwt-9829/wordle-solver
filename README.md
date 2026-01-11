@@ -1,180 +1,103 @@
-# SOTA Wordle Solver
+# Wordle Solver
 
-A state-of-the-art Wordle solver that runs efficiently on local hardware. Achieves near-optimal performance (~3.45-3.50 average guesses) without requiring heavy computation or training.
+A near-optimal Wordle solver achieving **3.4251 average guesses** on the original 2315-word Wordle list. This is within 0.005 of the theoretical minimum (3.4201).
 
-## Features
+## Performance
 
-- **CSP + Entropy + Endgame Lookahead**: Three-stage algorithm combining constraint satisfaction, information theory, and bounded search
-- **Fast**: Full benchmark over 2315 words completes in ~1-2 minutes
-- **Hard Mode Support**: Respects hard mode constraints
-- **Interactive Mode**: Get suggestions while playing Wordle
-- **Comprehensive Benchmarking**: Compare solver variants and track statistics
+| Metric | Value |
+|--------|-------|
+| **Average Guesses** | 3.4251 |
+| **Total Guesses** | 7929 (on 2315 words) |
+| **Failures** | 0 |
+| **Best First Guess** | SALET |
 
-## Quick Start
-
-```bash
-# Test solver on specific words
-python -m src.cli test crane jazzy query
-
-# Watch the solver play
-python -m src.cli play --word crane
-
-# Interactive mode (get suggestions while you play)
-python -m src.cli solve
-
-# Run full benchmark
-python -m src.cli benchmark
-```
+**Distribution:**
+- 2 guesses: 78 words (3.4%)
+- 3 guesses: 1219 words (52.7%)
+- 4 guesses: 976 words (42.2%)
+- 5 guesses: 40 words (1.7%)
+- 6 guesses: 2 words (0.1%)
 
 ## Installation
 
 ```bash
-# Clone the repository
 cd wordle-solver
-
-# No external dependencies required for basic usage!
-# For benchmarking, you may want numpy for speedups:
-pip install numpy
+pip install -r requirements.txt
 ```
 
-## Usage
+## Quick Start
 
-### Interactive Solving
+```python
+from src.solver import WordleSolver, load_words
 
-Use the solver to get suggestions while playing Wordle:
+# Load word lists
+answers = load_words("words/answers.txt")
+guesses = load_words("words/allowed_guesses.txt")
+
+# Create solver
+solver = WordleSolver(answers, guesses, first_guess="salet")
+
+# Solve a word
+n_guesses, guess_list = solver.solve("crane", verbose=True)
+print(f"Solved in {n_guesses} guesses: {' -> '.join(guess_list)}")
+```
+
+## Run Benchmark
 
 ```bash
-python -m src.cli solve
+python -m src.solver
 ```
 
-Enter feedback as:
-- **Emoji**: `🟩🟨⬛⬛🟨`
-- **Letters**: `GYBBY` (G=green, Y=yellow, B=black)
-- **Numbers**: `21001` (2=green, 1=yellow, 0=gray)
+Or in Python:
 
-### Watch the Solver Play
+```python
+from src.solver import WordleSolver, load_words, benchmark, print_results
 
-```bash
-# Random word
-python -m src.cli play
+answers = load_words("words/answers.txt")
+guesses = load_words("words/allowed_guesses.txt")
+solver = WordleSolver(answers, guesses, first_guess="salet")
 
-# Specific word
-python -m src.cli play --word jazzy
-
-# Hide the target word (for suspense)
-python -m src.cli play --hide
+results = benchmark(solver, answers)
+print_results(results)
 ```
 
-### Run Benchmarks
+## Algorithm
 
-```bash
-# Benchmark the default (best) solver
-python -m src.cli benchmark
+The solver uses several key optimizations:
 
-# Compare all solver variants
-python -m src.cli benchmark --all
-
-# Quick test (100 words)
-python -m src.cli benchmark --limit 100
-
-# Save results
-python -m src.cli benchmark -o results.csv
-```
-
-### Analyze Starting Words
-
-```bash
-# Find best starting words by entropy
-python -m src.cli analyze
-
-# Show top 50 and benchmark them
-python -m src.cli analyze --top 50 --benchmark
-```
-
-## Algorithm Overview
-
-### Phase 1: Entropy-Based Selection
-For each possible guess, compute the expected information gain (entropy) by analyzing how the guess partitions remaining candidates. Higher entropy = more information gained on average.
-
-### Phase 2: CSP Constraint Propagation
-Maintain a constraint state tracking:
-- Fixed positions (green letters)
-- Forbidden positions (yellow letters)
-- Letter count bounds (from duplicate handling)
-
-Apply constraints BEFORE entropy calculation for better accuracy.
-
-### Phase 3: Endgame Lookahead
-When few candidates remain (≤12), use bounded minimax search to find the optimal guess. This handles worst-case scenarios that pure entropy misses.
-
-## Performance
-
-| Solver Variant | Mean Guesses | Max Guesses | Runtime |
-|----------------|--------------|-------------|---------|
-| Entropy Only   | ~3.60        | 6           | ~30s    |
-| CSP-Entropy    | ~3.50        | 6           | ~45s    |
-| CSP + Endgame  | ~3.45        | 5-6         | ~90s    |
-
-Target performance: **3.45-3.50 average guesses** (near SOTA without heavy compute)
+1. **Exhaustive Distinguishing Search**: For any candidate set, scans all 14,855 valid guesses to find the one that maximizes distinct feedback patterns
+2. **Precomputed Decision Tree**: Optimal second and third guesses are precomputed for all possible game states after SALET
+3. **Candidate Preference**: When multiple guesses have equal distinguishing power, prefers guesses that could be the answer
+4. **Numba JIT Compilation**: Feedback matrix computation is parallelized and JIT-compiled for speed
+5. **Disk Caching**: Feedback matrix and precomputed guesses are cached to `cache/` for instant loading on subsequent runs (~0.3s vs ~4s)
 
 ## Project Structure
 
 ```
 wordle-solver/
 ├── src/
-│   ├── __init__.py
-│   ├── feedback.py          # Core feedback computation
-│   ├── constraints.py       # CSP constraint propagation
-│   ├── entropy_solver.py    # Entropy-based solver
-│   ├── csp_entropy_solver.py # CSP-aware entropy solver
-│   ├── endgame_search.py    # Bounded lookahead search
-│   ├── solver.py            # Unified solver interface
-│   ├── benchmark.py         # Benchmarking system
-│   └── cli.py               # Command-line interface
+│   ├── __init__.py      # Package exports
+│   └── solver.py        # Main solver implementation
+├── cache/               # Auto-generated cache files (gitignored)
 ├── words/
-│   ├── answers.txt          # 2315 possible answers
-│   └── start_words.json     # Precomputed best starters
+│   ├── answers.txt      # 2315 possible answers (original Wordle)
+│   └── allowed_guesses.txt  # 14855 valid guesses
+├── requirements.txt
 └── README.md
 ```
 
-## API Usage
+## Requirements
 
-```python
-from src.solver import WordleSolver, SolverType
+- Python 3.8+
+- NumPy
+- Numba
 
-# Create solver
-solver = WordleSolver(
-    solver_type=SolverType.ENDGAME,  # Best performance
-    hard_mode=False
-)
+## Theory
 
-# Auto-solve a word
-guesses, solved = solver.solve("crane")
-print(f"Solved in {len(guesses)} guesses: {guesses}")
+The theoretical minimum average for Wordle with the original 2315-word list is **3.4201** (7920 total guesses), proven by Alex Selby. This solver achieves 3.4251 (7929 guesses), just 9 guesses above optimal.
 
-# Interactive usage
-solver.reset()
-guess = solver.next_guess()  # Get suggestion
-feedback = solver.parse_feedback("🟩🟨⬛⬛🟨")  # Parse result
-solver.update(guess, feedback)  # Update state
-```
-
-## Hard Mode
-
-The solver fully supports Wordle's hard mode:
-
-```bash
-python -m src.cli solve --hard
-python -m src.cli benchmark --hard
-```
-
-In hard mode, all discovered hints must be used in subsequent guesses.
+Reaching the exact theoretical minimum requires a full decision tree optimization, which is computationally expensive but could be added in the future.
 
 ## License
 
-MIT License - feel free to use and modify.
-
-## Acknowledgments
-
-- Word lists from the original Wordle game
-- Algorithm inspired by information theory and constraint satisfaction research
+MIT
